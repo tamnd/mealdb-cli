@@ -35,7 +35,7 @@ func DefaultConfig() Config {
 	return Config{
 		BaseURL:   "https://www.themealdb.com/api/json/v1/1",
 		UserAgent: "Mozilla/5.0 (compatible; mealdb-cli/dev; +https://github.com/tamnd/mealdb-cli)",
-		Rate:      200 * time.Millisecond,
+		Rate:      300 * time.Millisecond,
 		Timeout:   15 * time.Second,
 		Retries:   3,
 	}
@@ -97,9 +97,9 @@ func (c *Client) Random(ctx context.Context) (Meal, error) {
 	return toMeal(resp.Meals[0], 1), nil
 }
 
-// Get returns a meal by ID. Returns an error if the ID is not found.
+// Lookup returns a meal by ID. Returns an error if the ID is not found.
 // Calls GET /lookup.php?i={id}.
-func (c *Client) Get(ctx context.Context, id string) (Meal, error) {
+func (c *Client) Lookup(ctx context.Context, id string) (Meal, error) {
 	u := fmt.Sprintf("%s/lookup.php?i=%s", c.cfg.BaseURL, neturl.QueryEscape(id))
 	body, err := c.get(ctx, u)
 	if err != nil {
@@ -124,7 +124,7 @@ type FilterOptions struct {
 
 // Filter returns summary meal records matching the given filter options.
 // At least one of Category or Area must be set.
-func (c *Client) Filter(ctx context.Context, opts FilterOptions) ([]FilterResult, error) {
+func (c *Client) Filter(ctx context.Context, opts FilterOptions) ([]MealRef, error) {
 	var param string
 	if opts.Category != "" {
 		param = "c=" + neturl.QueryEscape(opts.Category)
@@ -142,9 +142,9 @@ func (c *Client) Filter(ctx context.Context, opts FilterOptions) ([]FilterResult
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("decode filter: %w", err)
 	}
-	results := make([]FilterResult, 0, len(resp.Meals))
+	results := make([]MealRef, 0, len(resp.Meals))
 	for i, m := range resp.Meals {
-		results = append(results, FilterResult{
+		results = append(results, MealRef{
 			Rank:      i + 1,
 			ID:        m.IDMeal,
 			Name:      m.StrMeal,
@@ -176,6 +176,7 @@ func (c *Client) Categories(ctx context.Context) ([]Category, error) {
 			ID:          cat.IDCategory,
 			Name:        cat.StrCategory,
 			Description: cat.StrCategoryDescription,
+			Thumbnail:   cat.StrCategoryThumb,
 		})
 	}
 	return cats, nil

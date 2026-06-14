@@ -2,7 +2,9 @@ package mealdb
 
 import (
 	"context"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/tamnd/any-cli/kit"
 	"github.com/tamnd/any-cli/kit/errs"
@@ -48,8 +50,17 @@ func (Domain) Register(app *kit.App) {
 		Group:   "read",
 		List:    true,
 		Summary: "Search meals by name",
-		Args:    []kit.Arg{{Name: "name", Help: "meal name to search for"}},
+		Args:    []kit.Arg{{Name: "query", Help: "meal name to search"}},
 	}, searchOp)
+
+	// lookup: fetch meal by ID
+	kit.Handle(app, kit.OpMeta{
+		Name:    "lookup",
+		Group:   "read",
+		Single:  true,
+		Summary: "Fetch a meal by ID",
+		Args:    []kit.Arg{{Name: "id", Help: "meal ID"}},
+	}, lookupOp)
 
 	// random: one random meal
 	kit.Handle(app, kit.OpMeta{
@@ -59,14 +70,13 @@ func (Domain) Register(app *kit.App) {
 		Summary: "Fetch a random meal",
 	}, randomOp)
 
-	// get: fetch meal by ID
+	// categories: list all meal categories
 	kit.Handle(app, kit.OpMeta{
-		Name:    "get",
+		Name:    "categories",
 		Group:   "read",
-		Single:  true,
-		Summary: "Fetch a meal by ID",
-		Args:    []kit.Arg{{Name: "id", Help: "meal ID"}},
-	}, getOp)
+		List:    true,
+		Summary: "List all meal categories",
+	}, categoriesOp)
 
 	// filter: filter meals by category or area
 	kit.Handle(app, kit.OpMeta{
@@ -75,14 +85,6 @@ func (Domain) Register(app *kit.App) {
 		List:    true,
 		Summary: "Filter meals by category or cuisine area",
 	}, filterOp)
-
-	// categories: list all meal categories
-	kit.Handle(app, kit.OpMeta{
-		Name:    "categories",
-		Group:   "read",
-		List:    true,
-		Summary: "List all meal categories",
-	}, categoriesOp)
 
 	// areas: list all cuisine areas
 	kit.Handle(app, kit.OpMeta{
@@ -114,30 +116,29 @@ func newClient(_ context.Context, cfg kit.Config) (any, error) {
 // --- inputs ---
 
 type searchInput struct {
-	Name   string        `kit:"arg"          help:"meal name to search for"`
+	Query  string        `kit:"arg"          help:"meal name to search"`
 	Limit  int           `kit:"flag,inherit" help:"max results"`
 	Delay  time.Duration `kit:"flag,inherit" help:"minimum spacing between requests"`
 	Client *Client       `kit:"inject"`
+}
+
+type lookupInput struct {
+	ID     string  `kit:"arg" help:"meal ID"`
+	Client *Client `kit:"inject"`
 }
 
 type randomInput struct {
 	Client *Client `kit:"inject"`
 }
 
-type getInput struct {
-	ID     string  `kit:"arg" help:"meal ID"`
+type categoriesInput struct {
 	Client *Client `kit:"inject"`
 }
 
 type filterInput struct {
-	Category string  `kit:"flag" help:"filter by category (e.g. Seafood, Chicken)"`
-	Area     string  `kit:"flag" help:"filter by cuisine area (e.g. Japanese, Italian)"`
-	Limit    int     `kit:"flag,inherit" help:"max results"`
+	Category string  `kit:"flag" help:"category name e.g. Seafood"`
+	Area     string  `kit:"flag" help:"area/cuisine e.g. Italian"`
 	Client   *Client `kit:"inject"`
-}
-
-type categoriesInput struct {
-	Client *Client `kit:"inject"`
 }
 
 type areasInput struct {
@@ -147,7 +148,7 @@ type areasInput struct {
 // --- handlers ---
 
 func searchOp(ctx context.Context, in searchInput, emit func(Meal) error) error {
-	items, err := in.Client.Search(ctx, in.Name, in.Limit)
+	items, err := in.Client.Search(ctx, in.Query, in.Limit)
 	if err != nil {
 		return mapErr(err)
 	}
@@ -159,38 +160,20 @@ func searchOp(ctx context.Context, in searchInput, emit func(Meal) error) error 
 	return nil
 }
 
+func lookupOp(ctx context.Context, in lookupInput, emit func(Meal) error) error {
+	meal, err := in.Client.Lookup(ctx, in.ID)
+	if err != nil {
+		return mapErr(err)
+	}
+	return emit(meal)
+}
+
 func randomOp(ctx context.Context, in randomInput, emit func(Meal) error) error {
 	meal, err := in.Client.Random(ctx)
 	if err != nil {
 		return mapErr(err)
 	}
 	return emit(meal)
-}
-
-func getOp(ctx context.Context, in getInput, emit func(Meal) error) error {
-	meal, err := in.Client.Get(ctx, in.ID)
-	if err != nil {
-		return mapErr(err)
-	}
-	return emit(meal)
-}
-
-func filterOp(ctx context.Context, in filterInput, emit func(FilterResult) error) error {
-	opts := FilterOptions{
-		Category: in.Category,
-		Area:     in.Area,
-		Limit:    in.Limit,
-	}
-	results, err := in.Client.Filter(ctx, opts)
-	if err != nil {
-		return mapErr(err)
-	}
-	for _, r := range results {
-		if err := emit(r); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func categoriesOp(ctx context.Context, in categoriesInput, emit func(Category) error) error {
@@ -200,6 +183,23 @@ func categoriesOp(ctx context.Context, in categoriesInput, emit func(Category) e
 	}
 	for _, cat := range cats {
 		if err := emit(cat); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func filterOp(ctx context.Context, in filterInput, emit func(MealRef) error) error {
+	opts := FilterOptions{
+		Category: in.Category,
+		Area:     in.Area,
+	}
+	results, err := in.Client.Filter(ctx, opts)
+	if err != nil {
+		return mapErr(err)
+	}
+	for _, r := range results {
+		if err := emit(r); err != nil {
 			return err
 		}
 	}
@@ -221,19 +221,39 @@ func areasOp(ctx context.Context, in areasInput, emit func(Area) error) error {
 
 // --- Resolver: pure string functions, no network ---
 
+// isNumeric returns true when s consists entirely of ASCII digits.
+func isNumeric(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if !unicode.IsDigit(r) {
+			return false
+		}
+	}
+	return true
+}
+
 // Classify turns an input into the canonical (type, id).
+// Numeric inputs are classified as "id"; everything else as "query".
 func (Domain) Classify(input string) (uriType, id string, err error) {
+	input = strings.TrimSpace(input)
 	if input == "" {
 		return "", "", errs.Usage("empty mealdb reference")
 	}
-	return "meal", input, nil
+	if isNumeric(input) {
+		return "id", input, nil
+	}
+	return "query", input, nil
 }
 
 // Locate returns the live https URL for a (type, id).
 func (Domain) Locate(uriType, id string) (string, error) {
 	switch uriType {
-	case "meal":
+	case "id":
 		return "https://www.themealdb.com/meal/" + id, nil
+	case "query":
+		return "https://www.themealdb.com/meal/" + id + "-Detail.php", nil
 	default:
 		return "", errs.Usage("mealdb has no resource type %q", uriType)
 	}

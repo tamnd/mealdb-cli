@@ -119,7 +119,7 @@ func TestSearchRetriesOn503(t *testing.T) {
 	}
 }
 
-func TestGetByID(t *testing.T) {
+func TestLookupByID(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("i") != "52772" {
 			t.Errorf("expected i=52772, got %q", r.URL.Query().Get("i"))
@@ -131,7 +131,7 @@ func TestGetByID(t *testing.T) {
 	defer ts.Close()
 
 	c := newTestClient(ts)
-	got, err := c.Get(context.Background(), "52772")
+	got, err := c.Lookup(context.Background(), "52772")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,14 +143,14 @@ func TestGetByID(t *testing.T) {
 	}
 }
 
-func TestGetNotFound(t *testing.T) {
+func TestLookupNotFound(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = fmt.Fprint(w, `{"meals":null}`)
 	}))
 	defer ts.Close()
 
 	c := newTestClient(ts)
-	_, err := c.Get(context.Background(), "99999999")
+	_, err := c.Lookup(context.Background(), "99999999")
 	if err == nil {
 		t.Error("expected error for not-found ID, got nil")
 	}

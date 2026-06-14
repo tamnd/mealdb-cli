@@ -11,7 +11,7 @@ type Ingredient struct {
 // Meal is one recipe from TheMealDB.
 type Meal struct {
 	Rank         int          `json:"rank"`
-	ID           string       `json:"id"`
+	ID           string       `kit:"id" json:"id"`
 	Name         string       `json:"name"`
 	Category     string       `json:"category"`
 	Area         string       `json:"area"` // cuisine origin
@@ -24,9 +24,10 @@ type Meal struct {
 // Category is one meal category from TheMealDB.
 type Category struct {
 	Rank        int    `json:"rank"`
-	ID          string `json:"id"`
+	ID          string `kit:"id" json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	Thumbnail   string `json:"thumbnail"`
 }
 
 // Area is one cuisine area/origin from TheMealDB.
@@ -35,11 +36,11 @@ type Area struct {
 	Name string `json:"name"`
 }
 
-// FilterResult is a summary meal returned by the filter endpoint.
-// It does not include ingredients; use Get to fetch full details.
-type FilterResult struct {
+// MealRef is a summary meal reference returned by the filter endpoint.
+// It does not include ingredients; use Lookup to fetch full details.
+type MealRef struct {
 	Rank      int    `json:"rank"`
-	ID        string `json:"id"`
+	ID        string `kit:"id" json:"id"`
 	Name      string `json:"name"`
 	Thumbnail string `json:"thumbnail"`
 }
