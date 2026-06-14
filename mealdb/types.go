@@ -2,23 +2,18 @@ package mealdb
 
 import "strings"
 
-// Ingredient is one meal ingredient with its measure.
-type Ingredient struct {
-	Name    string `json:"name"`
-	Measure string `json:"measure"`
-}
-
 // Meal is one recipe from TheMealDB.
 type Meal struct {
-	Rank         int          `json:"rank"`
-	ID           string       `kit:"id" json:"id"`
-	Name         string       `json:"name"`
-	Category     string       `json:"category"`
-	Area         string       `json:"area"` // cuisine origin
-	Instructions string       `json:"instructions"`
-	Thumbnail    string       `json:"thumbnail"`
-	YouTube      string       `json:"youtube"`
-	Ingredients  []Ingredient `json:"ingredients"`
+	Rank         int    `json:"rank"`
+	ID           string `kit:"id" json:"id"`
+	Name         string `json:"name"`
+	Category     string `json:"category"`
+	Area         string `json:"area"` // cuisine origin
+	Tags         string `json:"tags"`
+	YouTube      string `json:"youtube"`
+	Instructions string `json:"instructions"` // first 200 chars + "..." if longer
+	Ingredients  string `json:"ingredients"`  // "name:measure" pairs, comma-joined
+	Thumbnail    string `json:"thumbnail"`
 }
 
 // Category is one meal category from TheMealDB.
@@ -26,7 +21,7 @@ type Category struct {
 	Rank        int    `json:"rank"`
 	ID          string `kit:"id" json:"id"`
 	Name        string `json:"name"`
-	Description string `json:"description"`
+	Description string `json:"description"` // first 100 chars + "..." if longer
 	Thumbnail   string `json:"thumbnail"`
 }
 
@@ -54,6 +49,7 @@ type rawMeal struct {
 	StrArea         string `json:"strArea"`
 	StrInstructions string `json:"strInstructions"`
 	StrMealThumb    string `json:"strMealThumb"`
+	StrTags         string `json:"strTags"`
 	StrYoutube      string `json:"strYoutube"`
 	// Ingredients 1-20
 	StrIngredient1  string `json:"strIngredient1"`
@@ -131,9 +127,8 @@ type filterResponse struct {
 }
 
 // parseIngredients converts the flat strIngredientN / strMeasureN fields of a
-// rawMeal into a clean []Ingredient. Slots are filled consecutively: the loop
-// stops on the first empty name.
-func parseIngredients(m rawMeal) []Ingredient {
+// rawMeal into a comma-joined "name:measure" string. Empty slots stop the scan.
+func parseIngredients(m rawMeal) string {
 	names := [20]string{
 		m.StrIngredient1, m.StrIngredient2, m.StrIngredient3,
 		m.StrIngredient4, m.StrIngredient5, m.StrIngredient6,
@@ -152,15 +147,23 @@ func parseIngredients(m rawMeal) []Ingredient {
 		m.StrMeasure16, m.StrMeasure17, m.StrMeasure18,
 		m.StrMeasure19, m.StrMeasure20,
 	}
-	var ings []Ingredient
+	var pairs []string
 	for i, name := range names {
+		name = strings.TrimSpace(name)
 		if name == "" {
 			break
 		}
-		ings = append(ings, Ingredient{
-			Name:    strings.TrimSpace(name),
-			Measure: strings.TrimSpace(measures[i]),
-		})
+		measure := strings.TrimSpace(measures[i])
+		pairs = append(pairs, name+":"+measure)
 	}
-	return ings
+	return strings.Join(pairs, ", ")
+}
+
+// truncate returns s truncated to n runes, appending "..." if it was trimmed.
+func truncate(s string, n int) string {
+	runes := []rune(s)
+	if len(runes) <= n {
+		return s
+	}
+	return string(runes[:n]) + "..."
 }

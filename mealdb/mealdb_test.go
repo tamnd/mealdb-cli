@@ -68,8 +68,10 @@ func TestSearchParsesItems(t *testing.T) {
 	if got.Area != "India" {
 		t.Errorf("items[0].Area = %q, want India", got.Area)
 	}
-	if len(got.Ingredients) != 3 {
-		t.Errorf("len(items[0].Ingredients) = %d, want 3", len(got.Ingredients))
+	// Ingredients is a comma-joined "name:measure" string; Chicken Handi has 3.
+	wantIngredients := "Chicken:500g, Onion:2 large, Tomato:3 medium"
+	if got.Ingredients != wantIngredients {
+		t.Errorf("items[0].Ingredients = %q, want %q", got.Ingredients, wantIngredients)
 	}
 	if items[1].Name != "Teriyaki Chicken Casserole" {
 		t.Errorf("items[1].Name = %q, want Teriyaki Chicken Casserole", items[1].Name)

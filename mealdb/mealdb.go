@@ -175,7 +175,7 @@ func (c *Client) Categories(ctx context.Context) ([]Category, error) {
 			Rank:        i + 1,
 			ID:          cat.IDCategory,
 			Name:        cat.StrCategory,
-			Description: cat.StrCategoryDescription,
+			Description: truncate(cat.StrCategoryDescription, 100),
 			Thumbnail:   cat.StrCategoryThumb,
 		})
 	}
@@ -268,9 +268,10 @@ func toMeal(m rawMeal, rank int) Meal {
 		Name:         m.StrMeal,
 		Category:     m.StrCategory,
 		Area:         m.StrArea,
-		Instructions: m.StrInstructions,
-		Thumbnail:    m.StrMealThumb,
+		Tags:         m.StrTags,
 		YouTube:      m.StrYoutube,
+		Instructions: truncate(m.StrInstructions, 200),
 		Ingredients:  parseIngredients(m),
+		Thumbnail:    m.StrMealThumb,
 	}
 }

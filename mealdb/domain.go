@@ -53,9 +53,9 @@ func (Domain) Register(app *kit.App) {
 		Args:    []kit.Arg{{Name: "query", Help: "meal name to search"}},
 	}, searchOp)
 
-	// lookup: fetch meal by ID
+	// meal: fetch meal by ID
 	kit.Handle(app, kit.OpMeta{
-		Name:    "lookup",
+		Name:    "meal",
 		Group:   "read",
 		Single:  true,
 		Summary: "Fetch a meal by ID",
